@@ -23,7 +23,8 @@ from ..neuron import Neuron
 from ..modules import BuildingModule
 from ..projection import InputProj
 from ..types import _KOrder3d, _KOrder4d, _Order2d, _Order3d
-from ..utils import RIGISTER_MASTER_KEY_FORMAT
+
+RIGISTER_MASTER_KEY_FORMAT = "{0}.output"
 
 
 def _check_equal(num_in: int, num_out: int) -> int:
