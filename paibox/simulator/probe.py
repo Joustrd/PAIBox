@@ -2,6 +2,8 @@ from typing import Optional
 
 from paibox.base import PAIBoxObject
 
+__all__ = ["Probe"]
+
 
 class Probe(PAIBoxObject):
     def __init__(
@@ -19,7 +21,6 @@ class Probe(PAIBoxObject):
         """
         super().__init__(name)
 
-        self.target: PAIBoxObject
         self.attr = attr
         self._check_attr(target)
 
