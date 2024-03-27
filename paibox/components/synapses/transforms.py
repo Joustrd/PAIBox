@@ -8,8 +8,8 @@ from paibox.exceptions import AutoOptimizationWarning, ShapeError
 from paibox.types import DataArrayType, IntScalarType, SynOutType, WeightType
 from paibox.utils import is_shape
 
+from .conv_types import Size1Type, Size2Type
 from .conv_utils import _conv1d_faster, _conv1d_unroll, _conv2d_faster, _conv2d_unroll
-from ..types import Size1Type, Size2Type
 
 __all__ = [
     "OneToOne",
