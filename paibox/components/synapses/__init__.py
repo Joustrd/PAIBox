@@ -1,2 +1,2 @@
-from .base import FullConnectedSyn
+from .base import FullConnectedSyn, FullConnSyn
 from .transforms import GeneralConnType
