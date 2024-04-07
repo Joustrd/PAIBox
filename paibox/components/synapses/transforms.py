@@ -1,5 +1,6 @@
 import warnings
 from enum import Enum, auto, unique
+from typing import Literal
 
 import numpy as np
 from paicorelib import WeightPrecision as WP
@@ -8,14 +9,14 @@ from paibox.exceptions import AutoOptimizationWarning, ShapeError
 from paibox.types import DataArrayType, IntScalarType, SpikeType, SynOutType, WeightType
 from paibox.utils import is_shape
 
-from .conv_types import Size1Type, Size2Type, _Order3d
+from .conv_types import Size1Type, Size2Type, SizeAnyType
 from .conv_utils import (
-    _conv1d_faster,
     _conv1d_unroll,
-    _conv2d_faster,
     _conv2d_unroll,
-    _func_maxpool2d,
-    _mp2d_kernel_unroll,
+    _func_conv1d_faster,
+    _func_conv2d_faster,
+    _func_pool2d,
+    _pool2d_kernel_unroll,
 )
 
 __all__ = [
@@ -274,7 +275,32 @@ class MaskedLinear(Transform):
         return self.weights
 
 
-class Conv1dForward(Transform):
+class _ConvForward(Transform):
+    def __init__(
+        self,
+        in_shape: SizeAnyType,
+        out_shape: SizeAnyType,
+        kernel: np.ndarray,
+        stride: SizeAnyType,
+        padding: SizeAnyType,
+        # fm_order: str,
+    ) -> None:
+        self.in_shape = in_shape
+        self.out_shape = out_shape
+        self.stride = stride
+        self.padding = padding
+        # self.fm_order = fm_order
+
+        super().__init__(kernel)
+
+
+class Conv1dForward(_ConvForward):
+    in_shape: Size1Type
+    out_shape: Size1Type
+    stride: Size1Type
+    padding: Size1Type
+    # fm_order: _Order2d
+
     def __init__(
         self,
         in_shape: Size1Type,
@@ -284,29 +310,17 @@ class Conv1dForward(Transform):
         padding: Size1Type,
         # fm_order: _Order2d,
     ) -> None:
-        self.in_shape = in_shape
-        self.out_shape = out_shape
-        self.stride = stride
-        self.padding = padding
-        # self.fm_order = fm_order
-
-        super().__init__(kernel)
+        super().__init__(in_shape, out_shape, kernel, stride, padding)
 
     def __call__(self, x: SpikeType, *args, **kwargs) -> SynOutType:
-        cin = self.weights.shape[1]
-
         # if self.fm_order == "LC":
         #     # (N,) -> (L, C) -> (C, L)
         #     _x = x.reshape(self.in_shape + (cin,)).T
         # else:
-        _x = x.reshape((cin,) + self.in_shape)
+        _x = x.reshape((self.weights.shape[1],) + self.in_shape)
 
-        return _conv1d_faster(
-            _x,
-            self.out_shape,
-            self.weights,
-            self.stride,
-            self.padding,
+        return _func_conv1d_faster(
+            _x, self.out_shape, self.weights, self.stride, self.padding
         )
 
     @property
@@ -314,7 +328,13 @@ class Conv1dForward(Transform):
         return _conv1d_unroll(self.in_shape, self.out_shape, self.weights, self.stride)
 
 
-class Conv2dForward(Transform):
+class Conv2dForward(_ConvForward):
+    in_shape: Size2Type
+    out_shape: Size2Type
+    stride: Size2Type
+    padding: Size2Type
+    # fm_order: _Order3d
+
     def __init__(
         self,
         in_shape: Size2Type,
@@ -324,29 +344,17 @@ class Conv2dForward(Transform):
         padding: Size2Type,
         # fm_order: _Order3d,
     ) -> None:
-        self.in_shape = in_shape
-        self.out_shape = out_shape
-        self.stride = stride
-        self.padding = padding
-        # self.fm_order = fm_order
-
-        super().__init__(kernel)
+        super().__init__(in_shape, out_shape, kernel, stride, padding)
 
     def __call__(self, x: SpikeType, *args, **kwargs) -> SynOutType:
-        cin = self.weights.shape[1]
-
         # if self.fm_order == "HWC":
         #     # (N,) -> (H, W, C) -> (C, H, W)
         #     _x = x.reshape(self.in_shape + (cin,)).transpose(2, 0, 1)
         # else:
-        _x = x.reshape((cin,) + self.in_shape)
+        _x = x.reshape((self.weights.shape[1],) + self.in_shape)
 
-        return _conv2d_faster(
-            _x,
-            self.out_shape,
-            self.weights,
-            self.stride,
-            self.padding,
+        return _func_conv2d_faster(
+            _x, self.out_shape, self.weights, self.stride, self.padding
         )
 
     @property
@@ -354,7 +362,7 @@ class Conv2dForward(Transform):
         return _conv2d_unroll(self.in_shape, self.out_shape, self.weights, self.stride)
 
 
-class _MaxPool2dForward(Transform):
+class _Pool2dForward(Transform):
     # DO NOT use in the `FullConnectedSyn`
     def __init__(
         self,
@@ -364,7 +372,8 @@ class _MaxPool2dForward(Transform):
         kernel_size: Size2Type,
         stride: Size2Type,
         padding: Size2Type,
-        fm_order: _Order3d,
+        # fm_order: _Order3d,
+        pool_type: Literal["avg", "max"],
     ) -> None:
         self.channels = channels
         self.in_shape = in_shape
@@ -372,29 +381,28 @@ class _MaxPool2dForward(Transform):
         self.ksize = kernel_size
         self.stride = stride
         self.padding = padding
-        self.fm_order = fm_order
+        # self.fm_order = fm_order
+        self.pool_type = pool_type
 
         super().__init__(np.asarray(1, dtype=np.int8))
 
-    def __call__(self, x: SpikeType, *args, **kwargs) -> SynOutType:
-        if self.fm_order == "HWC":
-            # (N,) -> (H, W, C) -> (C, H, W)
-            _x = x.reshape(self.in_shape + (self.channels,)).transpose(2, 0, 1)
-        else:
-            _x = x.reshape((self.channels,) + self.in_shape)
+    def __call__(self, x: SpikeType, *args, **kwargs) -> SpikeType:
+        # if self.fm_order == "HWC":
+        #     # (N,) -> (H, W, C) -> (C, H, W)
+        #     _x = x.reshape(self.in_shape + (self.channels,)).transpose(2, 0, 1)
+        # else:
+        _x = x.reshape((self.channels,) + self.in_shape)
 
-        o_mp2d = _func_maxpool2d(
-            _x,
-            self.out_shape,
-            self.ksize,
-            self.stride,
-            self.padding,
+        return _func_pool2d(
+            _x, self.out_shape, self.ksize, self.stride, self.padding, self.pool_type
         )
-
-        return o_mp2d.flatten()
 
     @property
     def connectivity(self):
-        return _mp2d_kernel_unroll(
-            self.channels, self.in_shape, self.out_shape, self.ksize, self.stride
+        return _pool2d_kernel_unroll(
+            self.channels,
+            self.in_shape,
+            self.out_shape,
+            self.ksize,
+            self.stride,
         )
