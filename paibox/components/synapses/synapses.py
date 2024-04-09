@@ -7,7 +7,7 @@ from paibox.base import NeuDyn
 from paibox.types import DataArrayType
 
 from .base import Conv1dSyn, Conv2dSyn, FullConnSyn
-from .conv_types import _KOrder3d, _KOrder4d, _Order2d, _Order3d, _Size1Type, _Size2Type
+from .conv_types import _KOrder3d, _KOrder4d, _Size1Type, _Size2Type
 from .conv_utils import _pair, _single
 from .transforms import GeneralConnType as GConnType
 from ..neuron import Neuron
@@ -28,7 +28,7 @@ class FullConn(FullConnSyn):
         name: Optional[str] = None,
     ) -> None:
         """
-        Arguments:
+        Args:
             - source: source neuron(s).
             - dest: destination neuron(s).
             - weights: weights of the synapses. It can be a scalar or `np.ndarray`.
@@ -71,7 +71,7 @@ class Conv1d(Conv1dSyn):
     ) -> None:
         """1d convolution synapses in fully-unrolled format.
 
-        Arguments:
+        Args:
             - source: source neuron(s). The dimensions need to be expressed explicitly as (C,L).
             - dest: destination neuron(s).
             - kernel: convolution kernel. Its dimension order is either (O,I,L) or (I,O,L), depending on \
@@ -114,7 +114,7 @@ class Conv2d(Conv2dSyn):
     ) -> None:
         """2d convolution synapses in fully-unrolled format.
 
-        Arguments:
+        Args:
             - source: source neuron(s). The dimensions need to be expressed explicitly as (C,H,W).
             - dest: destination neuron(s).
             - kernel: convolution kernel. Its dimension order is either (O,I,H,W) or (I,O,H,W),         \
@@ -125,7 +125,7 @@ class Conv2d(Conv2dSyn):
             - name: name of the 2d convolution. Optional.
         """
         # if fm_order not in ("CHW", "HWC"):
-        #     raise ValueError(f"feature map order must be 'CHW or 'HWC'.")
+        #     raise ValueError(f"feature map order must be 'CHW' or 'HWC'.")
 
         if kernel_order not in ("OIHW", "IOHW"):
             raise ValueError(f"kernel order must be 'OIHW' or 'IOHW'.")
